@@ -62,9 +62,6 @@ var karma = {
     singleRun: true,
     client: {
       captureConsole: false,
-      amp: {
-        useCompiledJs: false
-      }
     }
   },
   firefox: {
@@ -99,10 +96,10 @@ var karma = {
       'SL_Firefox_latest',
       'SL_Safari_8',
       'SL_Safari_9',
+      'SL_Edge_latest',
       // TODO(#895) Enable these.
       //'SL_iOS_9_1',
       //'SL_IE_11',
-      //'SL_Edge_latest',
     ],
     singleRun: true,
     client: {
@@ -139,7 +136,7 @@ module.exports = {
     // This does match dist.3p/current, so we run presubmit checks on the
     // built 3p binary. This is done, so we make sure our special 3p checks
     // run against the entire transitive closure of deps.
-    '!{node_modules,build,dist,dist.tools,' +
+    '!{node_modules,build,examples.build,dist,dist.tools,' +
         'dist.3p/[0-9]*,dist.3p/current-min}/**/*.*',
     '!validator/node_modules/**/*.*',
     '!build-system/tasks/presubmit-checks.js',

@@ -76,6 +76,7 @@ describe('3p-frame', () => {
     div.setAttribute('data-ping', 'pong');
     div.setAttribute('width', '50');
     div.setAttribute('height', '100');
+    div.setAttribute('ampcid', 'cidValue');
 
     div.getLayoutBox = function() {
       return {
@@ -97,8 +98,8 @@ describe('3p-frame', () => {
         '"initialWindowWidth":100,"initialWindowHeight":200,"type":"_ping_"' +
         ',"_context":{"referrer":"' + referrer + '",' +
         '"canonicalUrl":"https://foo.bar/baz",' +
-        '"pageViewId":"' + docInfo.pageViewId + '","location":{"href":' +
-        '"' + locationHref + '"},"mode":{"localDev":true,' +
+        '"pageViewId":"' + docInfo.pageViewId + '","clientId":"cidValue",' +
+        '"location":{"href":"' + locationHref + '"},"mode":{"localDev":true,' +
         '"development":false,"minified":false}}}';
     expect(src).to.equal(
         'http://ads.localhost:9876/dist.3p/current/frame.max.html' +
@@ -158,7 +159,7 @@ describe('3p-frame', () => {
   it('should pick the right bootstrap url (custom)', () => {
     addCustomBootstrap('http://localhost:9876/boot/remote.html');
     expect(() => {
-      getBootstrapBaseUrl(window);
+      getBootstrapBaseUrl(window, true);
     }).to.throw(/must not be on the same origin as the/);
   });
 

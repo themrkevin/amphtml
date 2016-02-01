@@ -135,10 +135,19 @@ export function createFixtureIframe(fixture, initialIframeHeight, opt_beforeLoad
     iframe.onerror = function(event) {
       throw event.error;
     };
-    iframe.srcdoc = html;
     iframe.height = initialIframeHeight;
     iframe.width = 500;
-    document.body.appendChild(iframe);
+    if ('scrdoc' in iframe) {
+      iframe.srcdoc = html;
+      document.body.appendChild(iframe);
+    } else {
+      iframe.src = 'about:blank';
+      document.body.appendChild(iframe);
+      const idoc = iframe.contentWindow.document;
+      idoc.open();
+      idoc.write(html);
+      idoc.close();
+    }
   });
 }
 
@@ -176,6 +185,8 @@ export function createIframePromise(opt_runtimeOff, opt_beforeLayoutCallback) {
       }
       installCoreServices(iframe.contentWindow);
       registerForUnitTest(iframe.contentWindow);
+      // Act like no other elements were loaded by default.
+      iframe.contentWindow.ampExtendedElements = {};
       resolve({
         win: iframe.contentWindow,
         doc: iframe.contentWindow.document,
@@ -192,7 +203,9 @@ export function createIframePromise(opt_runtimeOff, opt_beforeLayoutCallback) {
               if (opt_beforeLayoutCallback) {
                 opt_beforeLayoutCallback();
               }
-              element.layoutCallback();
+              return element.layoutCallback().then(() => {
+                return element;
+              });
             }
             return element;
           });
@@ -289,7 +302,7 @@ export function pollForLayout(win, count, opt_timeout) {
  */
 export function expectBodyToBecomeVisible(win) {
   return poll('expect body to become visible', () => {
-    return win.document.body && (
+    return win && win.document && win.document.body && (
         (win.document.body.style.visibility == 'visible'
             && win.document.body.style.opacity != '0')
         || win.document.body.style.opacity == '1');

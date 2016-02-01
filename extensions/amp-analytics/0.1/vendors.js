@@ -40,11 +40,21 @@ export const ANALYTICS_CONFIG = {
       'scrollWidth': 'SCROLL_WIDTH',
       'scrollHeight': 'SCROLL_HEIGHT',
       'screenWidth': 'SCREEN_WIDTH',
-      'screenHeight': 'SCREEN_HEIGHT'
-      // Vars that GA can use: documentEncoding, userLanguage
+      'screenHeight': 'SCREEN_HEIGHT',
+      'pageLoadTime': 'PAGE_LOAD_TIME',
+      'domainLookupTime': 'DOMAIN_LOOKUP_TIME',
+      'tcpConnectTime': 'TCP_CONNECT_TIME',
+      'serverResponseTime': 'SERVER_RESPONSE_TIME',
+      'pageDownloadTime': 'PAGE_DOWNLOAD_TIME',
+      'redirectTime': 'REDIRECT_TIME',
+      'domInteractiveTime': 'DOM_INTERACTIVE_TIME',
+      'contentLoadTime': 'CONTENT_LOAD_TIME',
+      'availableScreenHeight': 'AVAILABLE_SCREEN_HEIGHT',
+      'availableScreenWidth': 'AVAILABLE_SCREEN_WIDTH',
+      'screenColorDepth': 'SCREEN_COLOR_DEPTH',
+      'browserLanguage': 'BROWSER_LANGUAGE',
+      'documentCharset': 'DOCUMENT_CHARSET',
     }
-    // TODO(btownsend, #871): Add a generic hit format to make custom analytics
-    // easier.
   },
 
   'googleanalytics': {
@@ -54,9 +64,11 @@ export const ANALYTICS_CONFIG = {
     },
     'requests': {
       'host': 'https://www.google-analytics.com',
-      'basePrefix': 'v=1&_v=a0&aip=true&_s=${hitCount}&dr=${documentReferrer}' +
+      'basePrefix': 'v=1&_v=a0&aip=true&_s=${requestCount}' +
           'dt=${title}&sr=${screenWidth}x${screenHeight}&_utmht=${timestamp}&' +
-          'jid=&cid=${clientId(_ga)}&tid=${account}&dl=${documentLocation}',
+          'jid=&cid=${clientId(_ga)}&tid=${account}&dl=${documentLocation}&' +
+          'dr=${documentReferrer}&sd=${screenColorDepth}&' +
+          'ul=${browserLanguage}&de=${documentCharset}' ,
       'baseSuffix': '&a=${pageViewId}&z=${random}',
       'pageview': '${host}/r/collect?${basePrefix}&t=pageview&' +
           '_r=1${baseSuffix}',
@@ -65,9 +77,36 @@ export const ANALYTICS_CONFIG = {
           'ev=${eventValue}${baseSuffix}',
       'social': '${host}/collect?${basePrefix}&t=social&' +
           'sa=${socialAction}&sn=${socialNetwork}&st=${socialTarget}' +
-          '${baseSuffix}'
+          '${baseSuffix}',
+      'timing': '${host}/collect?${basePrefix}&t=timing&plt=${pageLoadTime}&' +
+          'dns=${domainLookupTime}&tcp=${tcpConnectTime}&rrt=${redirectTime}&' +
+          'srt=${serverResponseTime}&pdt=${pageDownloadTime}&' +
+          'clt=${contentLoadTime}&dit=${domInteractiveTime}${baseSuffix}'
     },
     'optout': '_gaUserPrefs.ioo'
+  },
+
+  'comscore': {
+    'vars': {
+      'c2': '1000001'
+    },
+    'requests': {
+      'host': 'https://sb.scorecardresearch.com',
+      'base': '${host}/b?',
+      'pageview': '${base}c1=2&c2=${c2}&rn=${random}&c8=${title}' +
+        '&c7=${canonicalUrl}&c9=${documentReferrer}&cs_c7amp=${ampdocUrl}'
+    },
+    'triggers': {
+      'defaultPageview': {
+        'on': 'visible',
+        'request': 'pageview'
+      }
+    },
+    'transport': {
+      'beacon': false,
+      'xhrpost': false,
+      'image': true
+    }
   }
 };
 

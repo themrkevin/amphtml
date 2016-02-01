@@ -13,28 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import {registerElementAlias} from '../src/custom-element';
 
-/**
- * @fileoverview Factory for ./service/cid-impl.js
- */
-
-import {getElementService, getElementServiceIfAvailable}
-    from './custom-element';
-
-/**
- * @param {!Window} window
- * @return {!Promise<!Cid>}
- */
-export function cidFor(window) {
-  return getElementService(window, 'cid', 'amp-analytics');
-};
-
-/**
- * Returns a promise for the CID service or a promise for null if the service
- * is not available on the current page.
- * @param {!Window} window
- * @return {!Promise<?Cid>}
- */
-export function cidForOrNull(window) {
-  return getElementServiceIfAvailable(window, 'cid', 'amp-analytics');
-};
+export function installEmbed(win) {
+  registerElementAlias(win, "amp-embed", "amp-ad");
+}

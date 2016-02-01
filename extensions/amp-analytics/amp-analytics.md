@@ -61,6 +61,7 @@ when the document is first loaded, and each time an `<a>` tag is clicked:
 
   - `type` This optional attribute can be specified to use one of the built-in analytics providers. Currently supported values for type are:
     - `googleanalytics`: Adds support for Google Analytics. More details for adding Google Analytics support can be found at [developers.google.com](https://developers.google.com/analytics/devguides/collection/amp-analytics/).
+    - `comscore`: Supports comScore Unified Digital Measurement™ pageview analytics. Requires defining *var* `c2` with comScore-provided *c2 id*.
 
     ```
     <amp-analytics type="XYZ"> ... </amp-analytics>
@@ -71,6 +72,10 @@ when the document is first loaded, and each time an `<a>` tag is clicked:
     ```
     <amp-analytics config="https://example.com/analytics.config.json"></amp-analytics>
     ```
+
+  - `data-consent-notification-id` Optional attribute. If provided will stop
+    processing the analytics request until a [amp-user-notification](../../extensions/amp-user-notification/amp-user-notification.md) with
+    the given HTML-id was confirmed by the user.
 
 ## Configuration
 

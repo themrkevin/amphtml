@@ -1,5 +1,5 @@
 /**
- * Copyright 2015 The AMP HTML Authors. All Rights Reserved.
+ * Copyright 2016 The AMP HTML Authors. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,13 @@
  * limitations under the License.
  */
 
-/**
- * @fileoverview Factory for amp-user-notification
- */
-
 import {getElementService} from './custom-element';
 
 
 /**
  * @param {!Window} window
- * @return {!Promise<!UserNotificationManager>}
+ * @return {!Promise<!Storage>}
  */
-export function userNotificationManagerFor(window) {
-  return getElementService(window, 'userNotificationManager',
-      'amp-user-notification');
-}
+export function storageFor(window) {
+  return getElementService(window, 'storage', 'amp-analytics');
+};

@@ -35,13 +35,21 @@ describe('amp-iframe', () => {
 
   const timer = new Timer(window);
   let ranJs = 0;
+  let sandbox;
+
   beforeEach(() => {
     ranJs = 0;
+    sandbox = sinon.sandbox.create();
     window.onmessage = function(message) {
       if (message.data == 'loaded-iframe') {
         ranJs++;
       }
     };
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+    sandbox = null;
   });
 
   function waitForJsInIframe() {
@@ -375,10 +383,10 @@ describe('amp-iframe', () => {
   it('should listen for embed-ready event', () => {
     sinon.sandbox.create();
     const activateIframeSpy_ =
-        sinon.spy(AmpIframe.prototype, 'activateIframe_');
+        sandbox.spy(AmpIframe.prototype, 'activateIframe_');
     return getAmpIframe({
       src: clickableIframeSrc,
-      sandbox: 'allow-scripts',
+      sandbox: 'allow-scripts allow-same-origin',
       width: 480,
       height: 360,
       poster: 'https://i.ytimg.com/vi/cMcCTVAFBWM/hqdefault.jpg'
@@ -388,7 +396,6 @@ describe('amp-iframe', () => {
         expect(impl.iframe_.style.zIndex).to.equal('');
         expect(impl.placeholder_).to.be.null;
         expect(activateIframeSpy_.callCount).to.equal(2);
-        activateIframeSpy_.restore();
       });
     });
   });

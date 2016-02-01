@@ -14,21 +14,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the license.
  */
+goog.provide('amp.validator.CssLengthAndUnit');  // Only for testing.
+goog.provide('amp.validator.Terminal');
+goog.provide('amp.validator.renderErrorMessage');
+goog.provide('amp.validator.renderValidationResult');
+goog.provide('amp.validator.validateString');
+
 goog.require('amp.htmlparser.HtmlParser');
-goog.require('amp.htmlparser.HtmlParser.EFlags');
-goog.require('amp.htmlparser.HtmlParser.Elements');
-goog.require('amp.htmlparser.HtmlParser.Entities');
 goog.require('amp.htmlparser.HtmlSaxHandlerWithLocation');
 goog.require('amp.validator.AtRuleSpec');
 goog.require('amp.validator.AtRuleSpec.BlockType');
 goog.require('amp.validator.AttrList');
-goog.require('amp.validator.AttrSpec');
-goog.require('amp.validator.BlackListedCDataRegex');
-goog.require('amp.validator.CdataSpec');
-goog.require('amp.validator.CssRuleSpec');
 goog.require('amp.validator.CssSpec');
-goog.require('amp.validator.PropertySpec');
-goog.require('amp.validator.PropertySpecList');
 goog.require('amp.validator.RULES');
 goog.require('amp.validator.TagSpec');
 goog.require('amp.validator.ValidationError');
@@ -36,7 +33,6 @@ goog.require('amp.validator.ValidationError.Code');
 goog.require('amp.validator.ValidationError.Severity');
 goog.require('amp.validator.ValidationResult');
 goog.require('amp.validator.ValidationResult.Status');
-goog.require('amp.validator.ValidatorInfo');
 goog.require('amp.validator.ValidatorRules');
 goog.require('goog.array');
 goog.require('goog.asserts');
@@ -47,11 +43,6 @@ goog.require('goog.uri.utils');
 goog.require('parse_css.BlockType');
 goog.require('parse_css.parseAStylesheet');
 goog.require('parse_css.tokenize');
-
-goog.provide('amp.validator.CssLengthAndUnit');  // Only for testing.
-goog.provide('amp.validator.Terminal');
-goog.provide('amp.validator.renderValidationResult');
-goog.provide('amp.validator.validateString');
 
 /**
  * Determines if |n| is an integer.
@@ -182,6 +173,10 @@ function specificity(code) {
       return 28;
     case amp.validator.ValidationError.Code.DEV_MODE_ENABLED:
       return 29;
+    case amp.validator.ValidationError.Code.ATTR_DISALLOWED_BY_IMPLIED_LAYOUT:
+      return 30;
+    case amp.validator.ValidationError.Code.ATTR_DISALLOWED_BY_SPECIFIED_LAYOUT:
+      return 31;
     case amp.validator.ValidationError.Code.DEPRECATED_ATTR:
       return 101;
     case amp.validator.ValidationError.Code.DEPRECATED_TAG:
@@ -564,7 +559,7 @@ CdataMatcher.prototype.match = function(cdata, context, validationResult) {
   if (cdataSpec.cssSpec !== null) {
     /** @type {!Array<!parse_css.ErrorToken>} */
     const cssErrors = [];
-    /** @type {!Array<!parse_css.CSSParserToken>} */
+    /** @type {!Array<!parse_css.Token>} */
     const tokenList = parse_css.tokenize(cdata,
                                        this.getLineCol().getLine(),
                                        this.getLineCol().getCol(),
@@ -1158,16 +1153,19 @@ function CalculateHeight(spec, inputLayout, inputHeight) {
  * @param {!amp.validator.CssLengthAndUnit} width
  * @param {!amp.validator.CssLengthAndUnit} height
  * @param {string?} sizesAttr
+ * @param {string?} heightsAttr
  * @return {!amp.validator.AmpLayout.Layout}
  */
-function CalculateLayout(inputLayout, width, height, sizesAttr) {
+function CalculateLayout(inputLayout, width, height, sizesAttr, heightsAttr) {
   if (inputLayout !== amp.validator.AmpLayout.Layout.UNKNOWN) {
     return inputLayout;
   } else if (!width.isSet && !height.isSet) {
     return amp.validator.AmpLayout.Layout.CONTAINER;
   } else if (height.isSet && (!width.isSet || width.isAuto)) {
     return amp.validator.AmpLayout.Layout.FIXED_HEIGHT;
-  } else if (height.isSet && width.isSet && sizesAttr !== undefined) {
+  } else if (
+      height.isSet && width.isSet &&
+      (sizesAttr !== undefined || heightsAttr !== undefined)) {
     return amp.validator.AmpLayout.Layout.RESPONSIVE;
   } else {
     return amp.validator.AmpLayout.Layout.FIXED;
@@ -1180,14 +1178,15 @@ function CalculateLayout(inputLayout, width, height, sizesAttr) {
  * tagspecs as necessary. That is, if it's needed for document scope validation:
  * - Mandatory tags
  * - Unique tags
- * - Tags (identified by their detail) that are required by other tags.
+ * - Tags (identified by their detail or name) that are required by other tags.
  * @param {!amp.validator.TagSpec} tag
- * @param {!goog.structs.Set<string>} detailsToTrack
+ * @param {!goog.structs.Set<string>} detailOrNamesToTrack
  * @return {!boolean}
  */
-function shouldRecordTagspecValidated(tag, detailsToTrack) {
+function shouldRecordTagspecValidated(tag, detailOrNamesToTrack) {
   return tag.mandatory || tag.unique ||
-      tag.detail != null && detailsToTrack.contains(tag.detail);
+      getDetailOrName(tag) != null &&
+      detailOrNamesToTrack.contains(getDetailOrName(tag));
 }
 
 
@@ -1196,14 +1195,14 @@ function shouldRecordTagspecValidated(tag, detailsToTrack) {
  * which is unique within its context, the ParsedValidatorRules.
  * @param {!string} templateSpecUrl
  * @param {!goog.structs.Map<string, !amp.validator.AttrList>} attrListsByName
- * @param {!goog.structs.Map<string, number>} tagspecIdsByDetail
+ * @param {!goog.structs.Map<string, number>} tagspecIdsByDetailOrName
  * @param {!boolean} shouldRecordTagspecValidated
  * @param {!amp.validator.TagSpec} tagSpec
  * @param {number} tagId
  * @constructor
  */
 const ParsedTagSpec = function ParsedTagSpec(
-    templateSpecUrl, attrListsByName, tagspecIdsByDetail,
+    templateSpecUrl, attrListsByName, tagspecIdsByDetailOrName,
     shouldRecordTagspecValidated, tagSpec, tagId) {
   /**
    * @type {!amp.validator.TagSpec}
@@ -1264,7 +1263,7 @@ const ParsedTagSpec = function ParsedTagSpec(
   for (let i = 0; i < attrs.length; ++i) {
     const parsedAttrSpec = new ParsedAttrSpec(attrs[i], i);
     this.attrsById_.push(parsedAttrSpec);
-    this.attrsByName_[parsedAttrSpec.getSpec().name] = parsedAttrSpec;
+    this.attrsByName_.set(parsedAttrSpec.getSpec().name, parsedAttrSpec);
     if (parsedAttrSpec.getSpec().mandatory) {
       this.mandatoryAttrIds_.push(i);
     }
@@ -1273,7 +1272,7 @@ const ParsedTagSpec = function ParsedTagSpec(
     }
     const altNames = parsedAttrSpec.getSpec().alternativeNames;
     for (const altName of altNames) {
-      this.attrsByName_[altName] = parsedAttrSpec;
+      this.attrsByName_.set(altName, parsedAttrSpec);
     }
     if (parsedAttrSpec.getSpec().dispatchKey) {
       this.dispatchKeyAttrSpec_ = i;
@@ -1281,8 +1280,8 @@ const ParsedTagSpec = function ParsedTagSpec(
   }
   this.mandatoryOneofs_ = sortAndUniquify(this.mandatoryOneofs_);
 
-  for (const detail of tagSpec.alsoRequires) {
-    this.alsoRequires_.push(tagspecIdsByDetail.get(detail));
+  for (const detailOrName of tagSpec.alsoRequires) {
+    this.alsoRequires_.push(tagspecIdsByDetailOrName.get(detailOrName));
   }
 };
 
@@ -1312,7 +1311,7 @@ ParsedTagSpec.prototype.getSpec = function() {
  */
 ParsedTagSpec.prototype.hasDispatchKey = function() {
   return this.dispatchKeyAttrSpec_ !== -1;
-}
+};
 /**
  * You must check hasDispatchKey before accessing
  * @return {string}
@@ -1399,6 +1398,7 @@ ParsedTagSpec.prototype.validateLayout = function(context, attrsByKey, result) {
   const widthAttr = attrsByKey.get('width');
   const heightAttr = attrsByKey.get('height');
   const sizesAttr = attrsByKey.get('sizes');
+  const heightsAttr = attrsByKey.get('heights');
 
   // Parse the input layout attributes which we found for this tag.
   const inputLayout = parseLayout(layoutAttr);
@@ -1406,7 +1406,7 @@ ParsedTagSpec.prototype.validateLayout = function(context, attrsByKey, result) {
       inputLayout === amp.validator.AmpLayout.Layout.UNKNOWN) {
     context.addError(
         amp.validator.ValidationError.Code.INVALID_ATTR_VALUE,
-        /* params */ ["layout", getDetailOrName(this.spec_), layoutAttr],
+        /* params */['layout', getDetailOrName(this.spec_), layoutAttr],
         this.spec_.specUrl, result);
     return;
   }
@@ -1415,7 +1415,7 @@ ParsedTagSpec.prototype.validateLayout = function(context, attrsByKey, result) {
   if (!inputWidth.isValid) {
     context.addError(
         amp.validator.ValidationError.Code.INVALID_ATTR_VALUE,
-        /* params */ ["width", getDetailOrName(this.spec_), widthAttr],
+        /* params */['width', getDetailOrName(this.spec_), widthAttr],
         this.spec_.specUrl, result);
     return;
   }
@@ -1424,7 +1424,7 @@ ParsedTagSpec.prototype.validateLayout = function(context, attrsByKey, result) {
   if (!inputHeight.isValid) {
     context.addError(
         amp.validator.ValidationError.Code.INVALID_ATTR_VALUE,
-        /* params */ ["height", getDetailOrName(this.spec_), heightAttr],
+        /* params */['height', getDetailOrName(this.spec_), heightAttr],
         this.spec_.specUrl, result);
     return;
   }
@@ -1433,7 +1433,8 @@ ParsedTagSpec.prototype.validateLayout = function(context, attrsByKey, result) {
   const width = CalculateWidth(this.spec_.ampLayout, inputLayout, inputWidth);
   const height = CalculateHeight(this.spec_.ampLayout, inputLayout,
                                  inputHeight);
-  const layout = CalculateLayout(inputLayout, width, height, sizesAttr);
+  const layout =
+      CalculateLayout(inputLayout, width, height, sizesAttr, heightsAttr);
 
   // Does the tag support the computed layout?
   if (this.spec_.ampLayout.supportedLayouts.indexOf(layout) === -1) {
@@ -1488,6 +1489,16 @@ ParsedTagSpec.prototype.validateLayout = function(context, attrsByKey, result) {
           this.spec_.specUrl, result);
       return;
   }
+  if (heightsAttr !== undefined &&
+      layout !== amp.validator.AmpLayout.Layout.RESPONSIVE) {
+    const code = layoutAttr === undefined ?
+        amp.validator.ValidationError.Code.ATTR_DISALLOWED_BY_IMPLIED_LAYOUT :
+        amp.validator.ValidationError.Code.ATTR_DISALLOWED_BY_SPECIFIED_LAYOUT;
+    context.addError(
+        code, /* params */['heights', getDetailOrName(this.spec_), layout],
+        this.spec_.specUrl, result);
+    return;
+  }
 };
 
 /**
@@ -1512,7 +1523,7 @@ ParsedTagSpec.prototype.validateAttributes = function(
       return;
     }
   }
-  const hasTemplateAncestor = context.getTagNames().hasAncestor("template");
+  const hasTemplateAncestor = context.getTagNames().hasAncestor('template');
   let mandatoryAttrsSeen = [];
   /** @type {!goog.structs.Set<string>} */
   const mandatoryOneofsSeen = new goog.structs.Set();
@@ -1528,7 +1539,7 @@ ParsedTagSpec.prototype.validateAttributes = function(
       encounteredAttrValue = '';
 
     const encounteredAttrName = encounteredAttrKey.toLowerCase();
-    const parsedSpec = this.attrsByName_[encounteredAttrName];
+    const parsedSpec = this.attrsByName_.get(encounteredAttrName);
     if (parsedSpec === undefined) {
       // For now, we just skip data- attributes in the validator, because
       // our schema doesn't capture which ones would be ok or not. E.g.
@@ -1587,16 +1598,6 @@ ParsedTagSpec.prototype.validateAttributes = function(
                         parsedSpec.getSpec().deprecation],
           parsedSpec.getSpec().deprecationUrl, resultForAttempt);
       // Deprecation is only a warning, so we don't return.
-    }
-    if (parsedSpec.getSpec().devModeEnabled !== null) {
-      context.addError(
-          amp.validator.ValidationError.Code.DEV_MODE_ENABLED,
-          /* params */ [encounteredAttrName, getDetailOrName(this.spec_)],
-          parsedSpec.getSpec().devModeEnabledUrl,
-          resultForAttempt);
-      // Enabling the developer attribute is now always an error, so we
-      // return.
-      return;
     }
     if (!hasTemplateAncestor ||
         !this.valueHasTemplateSyntax(encounteredAttrValue)) {
@@ -1799,17 +1800,19 @@ const ParsedValidatorRules = function ParsedValidatorRules() {
   }
 
   /** @type {!goog.structs.Map<string, number>} */
-  const tagspecIdsByDetail = new goog.structs.Map();
+  const tagspecIdsByDetailOrName = new goog.structs.Map();
   /** @type {!goog.structs.Set<string>} */
-  const detailsToTrack = new goog.structs.Set();
+  const detailOrNamesToTrack = new goog.structs.Set();
   for (let i = 0; i < rules.tags.length; ++i) {
     const tag = rules.tags[i];
-    if (tag.detail != null) {
-      goog.asserts.assert(!tagspecIdsByDetail.containsKey(tag.detail));
-      tagspecIdsByDetail.set(tag.detail, i);
-      for (const alsoRequires of tag.alsoRequires) {
-        detailsToTrack.add(alsoRequires);
-      }
+    goog.asserts.assert(
+        !tagspecIdsByDetailOrName.containsKey(getDetailOrName(tag)));
+    tagspecIdsByDetailOrName.set(getDetailOrName(tag), i);
+    if (tag.alsoRequires.length > 0) {
+      detailOrNamesToTrack.add(getDetailOrName(tag));
+    }
+    for (const alsoRequires of tag.alsoRequires) {
+      detailOrNamesToTrack.add(alsoRequires);
     }
   }
 
@@ -1817,8 +1820,8 @@ const ParsedValidatorRules = function ParsedValidatorRules() {
     const tag = rules.tags[i];
     goog.asserts.assert(rules.templateSpecUrl != null);
     const parsedTagSpec = new ParsedTagSpec(
-        rules.templateSpecUrl, attrListsByName, tagspecIdsByDetail,
-        shouldRecordTagspecValidated(tag, detailsToTrack), tag, i);
+        rules.templateSpecUrl, attrListsByName, tagspecIdsByDetailOrName,
+        shouldRecordTagspecValidated(tag, detailOrNamesToTrack), tag, i);
     this.tagSpecById_.push(parsedTagSpec);
     goog.asserts.assert(tag.name !== null);
     if (!this.tagSpecByTagName_.containsKey(tag.name)) {
@@ -2242,6 +2245,28 @@ function applyFormat(format, error) {
 }
 
 /**
+ * Renders the error message for a single error, regardless of whether
+ * or not it has an associated format.
+ * @param {!amp.validator.ValidationError} error
+ * @return {!string}
+ * @export
+ */
+amp.validator.renderErrorMessage = function(error) {
+  let out = '';
+  const format =
+      parsedValidatorRulesSingleton.getFormatByCode().get(error.code);
+  // A11Y errors are special cased and don't have parameters.
+  if (format !== undefined && error.params.length > 0) {
+    out += applyFormat(format, error);
+  } else {
+    out += error.code;
+    if (error.detail !== undefined)
+      out += ' ' + error.detail;
+  }
+  return out;
+};
+
+/**
  * Renders one line of error output.
  * @param {!string} filenameOrUrl
  * @param {!amp.validator.ValidationError} error
@@ -2250,16 +2275,10 @@ function applyFormat(format, error) {
 function errorLine(filenameOrUrl, error) {
   const line = error.line || 1;
   const col = error.col || 0;
-  let message = error.code + ' ' + error.detail;
-  if (error.params.length > 0) {
-    const format =
-        parsedValidatorRulesSingleton.getFormatByCode().get(error.code);
-    if (format !== undefined) {
-      message = applyFormat(format, error);
-    }
-  }
+
   let errorLine = goog.uri.utils.removeFragment(filenameOrUrl) +
-      ':' + line + ':' + col + ' ' + message;
+      ':' + line + ':' + col + ' ';
+  errorLine += amp.validator.renderErrorMessage(error);
   if (error.specUrl) {
     errorLine += ' (see ' + error.specUrl + ')';
   }
