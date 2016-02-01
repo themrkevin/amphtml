@@ -1,0 +1,56 @@
+<!doctype html>
+<html ⚡>
+<head>
+  <meta charset="utf-8">
+  <title>SMS examples</title>
+  <link rel="canonical" href="amps.html" >
+  <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
+  <link href='https://fonts.googleapis.com/css?family=Questrial' rel='stylesheet' type='text/css'>
+  <script async custom-element="amp-sms" src="https://cdn.ampproject.org/v0/amp-sms-0.1.js"></script>
+  <style>body {opacity: 0}</style><noscript><style>body {opacity: 1}</style></noscript>
+  <script async src="https://cdn.ampproject.org/v0.js"></script>
+</head>
+<body>
+
+  <h2>SMS Things</h2>
+
+  <amp-sms width=50 height=50 
+    layout="fixed" 
+    data-title="Article from HP"
+    data-url="http://www.huffingtonpost.com">
+    Link to HuffPost
+  </amp-sms>
+
+  <amp-sms width=50 height=50 
+    layout="fixed" 
+    data-title="Google"
+    data-url="http://www.google.com">
+    Link to Google
+  </amp-sms>
+
+  <amp-sms width=150 height=150 
+    layout="fixed" 
+    data-title="Article from HP"
+    data-url="http://www.huffingtonpost.com" 
+    target="_blank">
+    Bigger link with text
+  </amp-sms>
+
+  <amp-sms layout="fixed" 
+    data-title="Article from HP"
+    data-url="http://www.huffingtonpost.com" 
+    target="_blank">
+    No width or height necessary    
+  </amp-sms>
+
+  <amp-sms width=50 height=50 
+    layout="responsive" 
+    data-title="Article from HP"
+    data-url="http://www.huffingtonpost.com" 
+    target="_blank">
+    <div>Mongooses</div>
+    <div>VS.<div>Crocodile</div></div>
+  </amp-sms>
+
+</body>
+</html>
